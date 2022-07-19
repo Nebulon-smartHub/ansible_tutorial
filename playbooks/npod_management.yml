@@ -1,0 +1,209 @@
+---
+# This is the example playbook for the "npod management" playbook in the
+# ansible tutorial. The following modules are used in this playbook:
+# - neb_npod_group - To create or delete nPod user groups
+# - neb_npod_group_info - To query nPod user groups
+# - neb_npod - To create or delete a nPod
+# - neb_npod_template - To create or delete a nPod template
+# - neb_npod_template_info - To query nPod templates
+
+# This playbook does the following:
+# - Gathers the nPod group and template UUIDs required
+# - Extracts and transforms required SPU information from inventory and vars_files
+# - Verifies SPUs are not present in an existing nPod
+# - Creates a nPod
+# - Prints out details of the nPod created
+
+# Example Invocation (with custom variables):
+# Create nPod group, template and nPod
+# ansible-playbook -i inventory/servers.ini playbooks/npod_management.yml
+
+# Delete a nPod
+# ansible-playbook -i inventory/servers.ini playbooks/npod_management.yml -e npod_state=absent
+
+- name: nPod management
+  hosts: localhost
+  connection: local
+
+  # Module defaults for nebulon_on module
+  # 'neb_username' and 'neb_password' are defined in Ansible Vault
+  module_defaults:
+    group/nebulon.nebulon_on.nebulon:
+      neb_username: "{{ neb_username }}"
+      neb_password: "{{ neb_password }}"
+
+  # Load the encrypted username and password for Nebulon ON and other variables
+  vars_files:
+    - vars_files/npod_management_vars.yml
+    - vars_files/credentials.yml
+
+  # Load the Nebulon Ansible collection
+  collections:
+    - nebulon.nebulon_on
+
+  tasks:
+    # Create the specified nPod group if it doesn't exist
+    - name: Create nPod group
+      nebulon.nebulon_on.neb_npod_group:
+        name: "{{ npod_group }}"
+        state: "{{ neb_npod_group_state }}"
+      register: npod_group_result
+      when: neb_npod_group_state == "present"
+
+    # "npod_group_result": {
+    #     "changed": false,
+    #     "failed": false,
+    #     "npod_group": {
+    #         "host_count": 0,
+    #         "name": "Kubernetes",
+    #         "note": "",
+    #         "npod_count": 0,
+    #         "npod_uuids": null,
+    #         "spu_count": 0,
+    #         "uuid": "d8817429-f5b1-4309-b9e9-6afa41ad3291"
+    #     }
+    # }
+
+    # Retrieve the nPod group details if the group previously existed
+    - name: Retrieve nPod group by name
+      nebulon.nebulon_on.neb_npod_group_info:
+        name: "{{ npod_group }}"
+      register: npod_group_name
+      when: neb_npod_group_state == "present"
+
+    # "npod_group_name": {
+    #     "changed": false,
+    #     "failed": false,
+    #     "npod_groups": [
+    #         {
+    #             "host_count": 0,
+    #             "name": "Kubernetes",
+    #             "note": "",
+    #             "npod_count": 0,
+    #             "npod_uuids": null,
+    #             "spu_count": 0,
+    #             "uuid": "d8817429-f5b1-4309-b9e9-6afa41ad3291"
+    #         }
+    #     ]
+    # }
+
+    # Create the required nPod template if it does not exist
+    - name: Create new nPod template
+      nebulon.nebulon_on.neb_npod_template:
+        name: "{{ npod_template_name }}"
+        volume_size_bytes: "{{ volume_size_bytes }}"
+        saving_factor: "{{ savings_factor }}"
+        mirrored_volume: "{{ mirrored_volume }}"
+        boot_volume: "{{ boot_volume }}"
+        boot_volume_size_bytes: "{{ boot_volume_size_bytes }}"
+        boot_image_url: "{{ boot_image_url }}"
+        os: "{{ npod_template_os }}"
+        state: "{{ template_state }}"
+      when: template_state == "present"
+      register: new_template
+
+      # "new_template": {
+      #     "changed": false,
+      #     "failed": false,
+      #     "npod_template": {
+      #         "app": "",
+      #         "boot_image_url": "http://homes.sc0.nebulon.com/aaron/cloud-init/ubuntu2004/ubuntu_20.04.2_cloudinit.img.xz",
+      #         "boot_volume": true,
+      #         "boot_volume_size_bytes": 40000000000,
+      #         "mirrored_volume": true,
+      #         "name": "example",
+      #         "nebulon_template": false,
+      #         "note": "",
+      #         "os": "Ubuntu Linux (64-bit)",
+      #         "parent_uuid": "fa02bcff-06a3-4803-a75f-0d6a84ba9570",
+      #         "saving_factor": 2.0,
+      #         "shared_lun": true,
+      #         "snapshot_schedule_template_uuids": [],
+      #         "uuid": "fa02bcff-06a3-4803-a75f-0d6a84ba9570",
+      #         "version": 1,
+      #         "volume_count": -1,
+      #         "volume_size_bytes": 100000000000
+      #     }
+      # }
+
+    # Retrieve the nPod template details for later use
+    # Required if the template was pre-existing
+    - name: Get nPod template details
+      nebulon.nebulon_on.neb_npod_template_info:
+        name: "{{ npod_template_name }}"
+      register: npod_template_name
+      when: npod_state == "present"
+
+    - name: Set facts
+      ansible.builtin.set_fact:
+        # Extract only the uuid attribute from npod_group_name and place it
+        # in the npod_group_uuid variable.
+        npod_group_uuid: "{{npod_group_name.npod_groups[0].uuid }}"
+        # Extract the template uuid from the latest npod template version
+        # and place it in the npod_template_uuid variable.
+        npod_template_uuid: "{{ npod_template_name.npod_templates[-1].uuid }}"
+      when: npod_state == "present"
+
+    - name: Prepare SPU specific info from inventory
+      ansible.builtin.set_fact:
+        # Extract the spu_serial inventory variable for each server, create a
+        # list of values and assign it to spu_serials.
+        spu_serials: "{{ groups.servers | \
+          map('extract', hostvars, 'spu_serial') | list }}"
+        # Extract the spu_address inventory variable for each server, create a
+        # list of values and assign it to spu_ips.
+        spu_ips: "{{ groups.servers | \
+          map('extract', hostvars, 'spu_address') | list }}"
+      register: result
+      when: npod_state == "present"
+
+    # Transform SPU serial and IP data for use by the neb_npod module
+    - name: Prepare create nPod input data
+      ansible.builtin.set_fact:
+        spus: "{{ spus | default([]) + [dict\
+          (spu_serial=item[0],\
+          ip_info_config=[dict(address=item[1],\
+          bond_mode=bond_mode,\
+          interfaces=interfaces,\
+          netmask_bits=netmask_bits,\
+          bond_transmit_hash_policy=bond_transmit_hash_policy,\
+          bond_lacp_transmit_rate=bond_lacp_transmit_rate)])] }}"
+      loop: "{{ spu_serials | zip(spu_ips) | list }}"
+      when: npod_state == "present"
+
+    # If SPUs are part of an existing nPod npod_spus will not be defined and
+    # the nPod creation will be skipped
+    - name: Verify SPUs not part of any existing nPod
+      nebulon.nebulon_on.neb_spu_info:
+        spu_serials: "{{ spu_serials }}"
+        not_in_npod: true
+      register: npod_spus
+      when: npod_state == "present"
+
+    # Create a nPod using the provided variables
+    - name: Create nPod
+      nebulon.nebulon_on.neb_npod:
+        name: "{{npod_name}}"
+        npod_group_uuid: "{{npod_group_uuid}}"
+        spus: "{{spus}}"
+        npod_template_uuid: "{{npod_template_uuid}}"
+        note: "Created by Ansible playbook"
+        timezone: "US/Pacific"
+        ignore_warnings: True
+        state: "{{npod_state}}"
+      register: npod_data
+      when: npod_spus.spus[0].serial is defined
+
+    # Remove a nPod if npod_state == "absent", otherwise skip this task
+    - name: Delete nPod
+      nebulon.nebulon_on.neb_npod:
+        name: "{{npod_name}}"
+        state: "{{npod_state}}"
+      when: npod_state == "absent"
+
+    # Set a reboot flag. Required if booting from a Nebulon boot volume so the
+    # server can pick up the new boot device.
+    - name: Mark if reboot is needed
+      ansible.builtin.set_fact:
+        reboot_required: "{{ npod_data.changed }}"
+      when: npod_state == "present"

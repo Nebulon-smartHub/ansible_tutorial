@@ -1,0 +1,169 @@
+---
+# This is the example playbook for the "host information" playbook in the
+# ansible tutorial. This is useful for mapping SPUs to physical hosts or
+# getting SPU details using available host information.
+
+# The following modules are used in this playbook:
+# - neb_host_info - Get host details
+
+# This playbook does the following:
+# - Dump host information. The following selectors can be used:
+# -- host_name; host_serial; host_uuid; host_model; host_manufacturer
+#    host_chassis_serial or host_board_serial
+
+# Example invocation
+# ansible-playbook -i inventory/servers.ini playbooks/host_information.yml
+
+- name: Host information
+  hosts: localhost
+  connection: local
+
+  # Module defaults for nebulon_on module
+  # 'neb_username' and 'neb_password' are defined in Ansible Vault
+  module_defaults:
+    group/nebulon.nebulon_on.nebulon:
+      neb_username: "{{ neb_username }}"
+      neb_password: "{{ neb_password }}"
+
+  # Load the encrypted username and password for Nebulon ON and other variables
+  vars_files:
+    - vars_files/host_information_vars.yml
+    - vars_files/credentials.yml
+
+  # Load the Nebulon Ansible collection
+  collections:
+    - nebulon.nebulon_on
+
+  tasks:
+    # You can get the information for a single host using its hostname as defined in nebulon ON. This will only fire
+    # when get_host_group_info is set to false.
+    - name: Get individual host info from server hostname
+      nebulon.nebulon_on.neb_host_info:
+        host_name: server-09.tme.nebulon.com
+      register: host_info
+      when: get_host_group_info == false
+
+    # The host_info variable now contains the following data:
+    # ok: [127.0.0.1] => {
+    #     "host_info": {
+    #         "changed": false,
+    #         "failed": false,
+    #         "hosts": [
+    #             {
+    #                 "board_serial": "R8SH9B80016",
+    #                 "boot_time": "2022-01-13T15:03:37",
+    #                 "chassis_serial": "J1001234",
+    #                 "cpu_core_count": 16,
+    #                 "cpu_count": 2,
+    #                 "cpu_manufacturer": "Intel(R) Corporation",
+    #                 "cpu_speed": 2300,
+    #                 "cpu_thread_count": 32,
+    #                 "cpu_type": "Intel(R) Xeon(R) Gold 5218 CPU @ 2.30GHz",
+    #                 "dimm_count": 8,
+    #                 "dimms": [
+    #                     {
+    #                         "location": "DIMM 5",
+    #                         "manufacturer": "SK Hynix",
+    #                         "size_bytes": 34358689792
+    #                     },
+    #                     #(output trimmed for readability)
+    #                 ],
+    #                 "lom_address": "10.100.25.45",
+    #                 "lom_hostname": "server-09-lom",
+    #                 "manufacturer": "Lenovo",
+    #                 "memory_bytes": 262136000000,
+    #                 "model": "ThinkSystem SR650 -[7X06CTO1WW]-",
+    #                 "name": "server-09.tme.nebulon.com",
+    #                 "note": "",
+    #                 "npod_uuid": "5d0c15eb-18ad-4c3b-bba6-e435988a408a",
+    #                 "rack_uuid": "5ab95a2a-40bf-4f3f-b082-01364322479d",
+    #                 "spu_count": 1,
+    #                 "spu_serials": [
+    #                     "014386435A39449249"
+    #                 ],
+    #                 "uuid": "ad5a5431-17e1-4023-8373-a6cf64cc5150"
+    #             }
+    #         ]
+    #     }
+    # }
+    
+    # You can then print out a filtered list containing the information
+    # required, such as host name, serial and SPU serial number.
+    - name: Print out single host information
+      ansible.builtin.debug:
+        msg: "{{ host_info | json_query(host_info_query) }}"
+      vars:
+        host_info_query: "hosts[].\
+          {name: name, \
+          serial: chassis_serial, \
+          spu_serials: spu_serials}"
+      when: get_host_group_info == false
+
+      # ok: [127.0.0.1] => {
+      #   "msg": [
+      #       {
+      #           "name": "server-09.tme.nebulon.com",
+      #           "serial": "J1001234",
+      #           "spu_serials": [
+      #               "014386435A39449249"
+      #           ]
+      #       }
+      #   ]
+      # }
+
+    # Similarly, the host information for a group of servers can be retrieved
+    # using `with_items: "{{ groups.servers }}"` assuming your servers are
+    # enumerated in an Ansible inventory group called `servers`. This will only
+    # fire when get_host_group_info is set to true.
+
+    - name: Get host info for all servers in an inventory group
+      nebulon.nebulon_on.neb_host_info:
+        host_name: "{{ item }}"
+      with_items: "{{ groups.servers }}"
+      register: host_info
+      when: get_host_group_info == true
+
+    # You can then print out a filtered list containing the information
+    # required, such as host name, serial and SPU serial number.
+    - name: Print out multiple host information
+      ansible.builtin.debug:
+        msg: "{{ host_info | json_query(host_info_query) }}"
+      vars:
+        host_info_query: "results[].hosts[].\
+          {name: name, \
+          serial: chassis_serial, \
+          spu_serials: spu_serials}"
+      when: get_host_group_info == true
+
+      # ok: [127.0.0.1] => {
+      #     "msg": [
+      #         {
+      #             "name": "server-09.tme.nebulon.com",
+      #             "serial": "J1001234",
+      #             "spu_serials": [
+      #                 "014386435A39449249"
+      #             ]
+      #         },
+      #         {
+      #             "name": "server-10.tme.nebulon.com",
+      #             "serial": "J1001235",
+      #             "spu_serials": [
+      #                 "01231C5BA684357532"
+      #             ]
+      #         },
+      #         {
+      #             "name": "server-11.tme.nebulon.com",
+      #             "serial": "J1001236",
+      #             "spu_serials": [
+      #                 "01234C1DDA9533223E"
+      #             ]
+      #         },
+      #         {
+      #             "name": "server-12.tme.nebulon.com",
+      #             "serial": "J1001237",
+      #             "spu_serials": [
+      #                 "01236AE13059FD35RT"
+      #             ]
+      #         }
+      #     ]
+      # }

@@ -1,0 +1,307 @@
+---
+# This is the example playbook for the "data protection" section in the
+# ansible tutorial. The following modules are used in this playbook:
+# - neb_snapshot_template - To create or delete a snapshot schedule template
+# - neb_snapshot_template_info - To query snapshot schedule templates
+# - neb_snapshot - To create or delete a volume snapshots
+# - neb_clone - To create or delete a volume clone
+
+# This playbook does the following high level actions:
+# - Take a snapshot of a specified volume
+# - Create a clone from the snapshot
+# - Export the clone to the specified host(s)
+
+# Example invocation
+# ansible-playbook -i inventory/servers.ini playbooks/neb_data_protection.yml
+
+- name: Data protection
+  hosts: localhost
+  connection: local
+
+  # Module defaults for nebulon_on module
+  # 'neb_username' and 'neb_password' are defined in Ansible Vault
+  module_defaults:
+    group/nebulon.nebulon_on.nebulon:
+      neb_username: "{{ neb_username }}"
+      neb_password: "{{ neb_password }}"
+
+  # Load the encrypted username and password for Nebulon ON and other variables
+  vars_files:
+    - vars_files/neb_data_protection_vars.yml
+    - vars_files/credentials.yml
+
+  # Load the Nebulon Ansible collection
+  collections:
+    - nebulon.nebulon_on
+
+  tasks:
+    # Populate the variable "spu_serials" from the [servers] group in inventory
+    - name: Pull SPU serials from inventory
+      ansible.builtin.set_fact:
+        spu_serials: "{{ groups.servers | \
+          map('extract', hostvars, 'spu_serial') | list }}"
+
+    # Ask for nPod name, query Nebulon ON for nPod details and store that in a
+    # variable named `npod`
+    - name: get nPod
+      nebulon.nebulon_on.neb_npod_info:
+        name: "{{ npod_name }}"
+      register: npod
+
+    # Set the npod_uuid variable
+    - name: set fact
+      ansible.builtin.set_fact:
+        npod_uuid: "{{ npod.npods[0].uuid }}"
+
+    # The module expects volume UUIDs so we go ahead and get a list of volumes
+    # so the user can specify an exact name or partial match for LUN creation
+    - name: Get nPod volumes
+      nebulon.nebulon_on.neb_volume_info:
+        npod_uuid: "{{ npod_uuid }}"
+        #volume_name: "{{ neb_clone_source_volume_name }}"
+      register: npod_volumes
+
+    # This block of code works if you specify the
+    # {{ neb_clone_source_volume_name }} variable
+    # An abridged output of the npod_volumes variable:
+    # "npod_volumes": {
+    #     "changed": false,
+    #     "failed": false,
+    #     "volumes": [
+    #         {
+    #             "accessible_by_host_uuids": null,
+    #             "boot": false,
+    #             "creation_time": "2021-10-06T18:03:03",
+    #             "current_owner_host_uuid": "3333a278-414b-45d1-8972-611115c76f87",
+    #             "expiration_time": null,
+    #             "lun_uuids": [],
+    #             "name": "test_volume",
+    #             "natural_backup_host_uuid": "ad5a5431-17e1-4023-8373-a6cf64cc5151",
+    #             "natural_backup_spu_serial": "012386435A3944xxxx",
+    #             "natural_owner_host_uuid": "3333a278-414b-45d1-8972-611115c76f87",
+    #             "natural_owner_spu_serial": "01234C1DDA9533xxxx",
+    #             "npod_uuid": "6812fde9-5eeb-46fa-98a2-24c777b6a3b9",
+    #             "read_only_snapshot": false,
+    #             "size_bytes": 10737418240,
+    #             "snapshot_parent_uuid": null,
+    #             "snapshot_uuids": [
+    #                 "7724fc0e-c85a-4e1a-b05f-1b72d5501179"
+    #             ],
+    #             "sync_state": "InSync",
+    #             "uuid": "6c720282-f990-42f5-b89f-42fa21860ba5",
+    #             "wwn": "6f497c200583a2d7000ab00000009000"
+    #         }
+    #     ]
+    # }
+
+    # As written this will report all volumes that match the contents in {{ volume_name }}
+    # in their volume name, including partial matches
+    # - name: Find clone source volume UUID
+    #   set_fact:
+    #     volume_uuid: "{{ npod_volumes.volumes |
+    #                     selectattr('name', 'match', npod_volumes.volumes[0].name) |
+    #                     map(attribute='uuid') | list }}"
+
+    # As written this will report all volumes that match the contents in {{ volume_name }}
+    # in their volume name, including partial matches
+    - name: Find clone source volume UUID
+      ansible.builtin.set_fact:
+        volume_uuid: "{{ npod_volumes.volumes |
+          selectattr('name', 'match', volume_name) |
+          map(attribute='uuid') | list }}"
+
+    # "volume_uuid": [
+    #     "6c720282-f990-42f5-b89f-42fa21860ba5"
+    # ]
+
+    # Create a snapshot using the volume_uuid variable as a base
+    - name: Create new snapshot
+      nebulon.nebulon_on.neb_snapshot:
+        volume_uuids: "{{ item }}"
+        name_patterns:
+          - "%v_%y-%m-%d_%H:%M_ANS"
+        expiration_seconds: "{{ neb_snapshot_expiration_seconds }}"
+        retention_seconds: "{{ neb_snapshot_retention_seconds }}"
+        state: "{{ neb_snapshot_state }}"
+      with_items: "{{ volume_uuid }}"
+      register: new_snapshot_volume
+      when: neb_snapshot_state == "present"
+
+    # "new_snapshot_volume": {
+    #     "changed": true,
+    #     "msg": "All items completed",
+    #     "results": [
+    #         {
+    #             "ansible_loop_var": "item",
+    #             "changed": true,
+    #             "failed": false,
+    #             "invocation": {
+    #                 "module_args": {
+    #                     "expiration_seconds": 3600,
+    #                     "name_patterns": [
+    #                         "%v_%y-%m-%d_%H:%M_ANS"
+    #                     ],
+    #                     "neb_password": "VALUE_SPECIFIED_IN_NO_LOG_PARAMETER",
+    #                     "neb_username": "apatt",
+    #                     "retention_seconds": 1800,
+    #                     "snapshot_uuid": null,
+    #                     "state": "present",
+    #                     "volume_uuids": [
+    #                         "6c720282-f990-42f5-b89f-42fa21860ba5"
+    #                     ]
+    #                 }
+    #             },
+    #             "item": "6c720282-f990-42f5-b89f-42fa21860ba5"
+    #         }
+    #     ]
+    # }
+
+    # Create a writable clone from the read-only snapshot so we can mount
+    # it to a host. Name the volume according to the "neb_clone_name" variable
+    - name: Create new clone
+      nebulon.nebulon_on.neb_clone:
+        volume_uuid: "{{ new_snapshot_volume.results[0].item }}"
+        name: "{{ neb_clone_name }}"
+        state: "{{ neb_clone_state }}"
+      when: neb_clone_state == "present"
+
+    # Once the clone is created, query for the new volume (clone) and
+    # register the return in the new_clone_result variable
+    - name: Get volume details for new clone
+      nebulon.nebulon_on.neb_volume_info:
+        npod_uuid: "{{ npod_uuid }}"
+        volume_name: "{{ neb_clone_name }}"
+      register: new_clone_result
+      when: neb_clone_state == "present"
+
+    #     "new_clone_result": {
+    #         "changed": false,
+    #         "failed": false,
+    #         "volumes": [
+    #             {
+    #                 "accessible_by_host_uuids": null,
+    #                 "boot": false,
+    #                 "creation_time": "2021-10-06T18:23:40",
+    #                 "current_owner_host_uuid": "3333a278-414b-45d1-8972-611115c76f87",
+    #                 "expiration_time": null,
+    #                 "lun_uuids": [],
+    #                 "name": "my_cloned_volume",
+    #                 "natural_backup_host_uuid": "ad5a5431-17e1-4023-8373-a6cf64cc5151",
+    #                 "natural_backup_spu_serial": "012386435A3944xxxx",
+    #                 "natural_owner_host_uuid": "3333a278-414b-45d1-8972-611115c76f87",
+    #                 "natural_owner_spu_serial": "01234C1DDA9533xxxx",
+    #                 "npod_uuid": "6812fde9-5eeb-46fa-98a2-24c777b6a3b9",
+    #                 "read_only_snapshot": false,
+    #                 "size_bytes": 10737418240,
+    #                 "snapshot_parent_uuid": null,
+    #                 "snapshot_uuids": null,
+    #                 "sync_state": "InSync",
+    #                 "uuid": "f4da91fa-dea5-4a0e-a3ef-f05bf6e5c2ec",
+    #                 "wwn": "6f497c200583a7ac000ab0000000b000"
+    #             }
+    #         ]
+    #     }
+
+    # Export the clone to the host that owned the original volume the clone
+    # was created from.
+    - name: Create new LUN exported to host owning the volume
+      nebulon.nebulon_on.neb_lun:
+        volume_uuid: "{{ new_clone_result.volumes[0].uuid }}"
+        host_uuids: "{{ item }}"
+        local: "{{ neb_lun_local }}"
+        state: "{{ neb_lun_status }}"
+      with_items:
+        - "{{ new_clone_result.volumes[0].current_owner_host_uuid }}"
+      register: new_lun_export
+      when: neb_lun_status == "present"
+
+    # "new_lun_export": {
+    #     "changed": true,
+    #     "msg": "All items completed",
+    #     "results": [
+    #         {
+    #             "ansible_loop_var": "item",
+    #             "changed": true,
+    #             "failed": false,
+    #             "invocation": {
+    #                 "module_args": {
+    #                     "host_uuids": [
+    #                         "3333a278-414b-45d1-8972-611115c76f87"
+    #                     ],
+    #                     "local": true,
+    #                     "lun_id": null,
+    #                     "lun_uuids": [],
+    #                     "neb_password": "VALUE_SPECIFIED_IN_NO_LOG_PARAMETER",
+    #                     "neb_username": "apatt",
+    #                     "spu_serials": [
+    #                         "01234C1DDA9533xxxx"
+    #                     ],
+    #                     "state": "present",
+    #                     "volume_uuid": "6d8d6dd3-f662-4e79-9dcd-5968f3cc0546"
+    #                 }
+    #             },
+    #             "item": "3333a278-414b-45d1-8972-611115c76f87"
+    #         }
+    #     ]
+    # }
+
+    # The following tasks remove snapshots, LUNs or clones when their
+    # state is set to absent
+
+    # Get the details of the parent volume the snapshot was created from
+    - name: Get volume details for the snapshot to remove
+      nebulon.nebulon_on.neb_volume_info:
+        npod_uuid: "{{ npod_uuid }}"
+        base_only: false
+      register: parent_volume
+      when: neb_snapshot_state == "absent"
+
+    # This returns the snap_uuid as a list
+    - name: Find snapshot uuid to remove
+      ansible.builtin.set_fact:
+        snap_uuid: "{{ parent_volume.volumes |
+          selectattr('name', 'match', volume_name) |
+          selectattr('read_only_snapshot', 'equalto', true) |
+          map(attribute='uuid') }}"
+      when: neb_snapshot_state == "absent"
+
+    # This returns the parent volume_uuid as a list
+    - name: Find parent volume uuid for the snapshot
+      ansible.builtin.set_fact:
+        volume_uuid: "{{ parent_volume.volumes |
+          selectattr('name', 'match', volume_name) |
+          selectattr('read_only_snapshot', 'equalto', true) |
+          map(attribute='snapshot_parent_uuid') }}"
+      when: neb_snapshot_state == "absent"
+
+    # Remove a snapshot when neb_snapshot_state == absent and volume_uuid has a value
+    - name: Remove existing snapshot
+      nebulon.nebulon_on.neb_snapshot:
+        snapshot_uuid: "{{ snap_uuid[0] }}"
+        volume_uuids: "{{ volume_uuid[0] }}"
+        state: "{{ neb_snapshot_state }}"
+      when: (neb_snapshot_state == "absent") and (volume_uuid | default(None))
+
+    # Find the UUID of the clone volume
+    - name: Find parent volume uuid for the snapshot
+      ansible.builtin.set_fact:
+        clone_volume_uuid: "{{ parent_volume.volumes |
+          selectattr('name', 'match', neb_clone_name) |
+          map(attribute='uuid') }}"
+      when: neb_lun_status == "absent"
+
+    # Remove the LUN export when neb_lun_status == "absent"
+    - name: Remove LUN export
+      nebulon.nebulon_on.neb_lun:
+        volume_uuid: "{{ clone_volume_uuid[0] }}"
+        local: "{{ neb_lun_local }}"
+        state: "{{ neb_lun_status }}"
+      when: (neb_lun_status == "absent") and (clone_volume_uuid | default(None))
+
+    # Remove the clone when neb_clone_state == "absent"
+    - name: Remove clone volume
+      nebulon.nebulon_on.neb_clone:
+        volume_uuid: "{{ clone_volume_uuid[0] }}"
+        name: "{{ neb_clone_name }}"
+        state: "{{ neb_clone_state }}"
+      when: (neb_clone_state == "absent") and (clone_volume_uuid | default(None))

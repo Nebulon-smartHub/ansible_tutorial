@@ -1,0 +1,91 @@
+---
+# This is the example playbook for the "set ntp" playbook in the
+# ansible tutorial. This is useful for setting custom NTP servers
+# for individual SPUs or for a nPod.
+
+# The following modules are used in this playbook:
+# - neb_ntp - Set NTP information
+
+# Example invocation
+# ansible-playbook -i inventory/servers.ini playbooks/set_ntp.yml
+
+- name: Set nPod NTP information
+  hosts: localhost
+  connection: local
+
+  # Module defaults for nebulon_on module
+  # 'neb_username' and 'neb_password' are defined in Ansible Vault
+  module_defaults:
+    group/nebulon.nebulon_on.nebulon:
+      neb_username: "{{ neb_username }}"
+      neb_password: "{{ neb_password }}"
+
+  # Load the encrypted username and password for Nebulon ON and other variables
+  vars_files:
+    - vars_files/set_ntp_vars.yml
+    - vars_files/credentials.yml
+
+  # Load the Nebulon Ansible collection
+  collections:
+    - nebulon.nebulon_on
+
+  tasks:
+    # Update NTP for a nPod
+
+    # In order to update the NTP settings on a nPod, you will need the nPod UUID.
+
+    # Instead of asking for a nPod UUID, ask for nPod name, query Nebulon ON for
+    # nPod details and store that in a variable named `npod`
+    - name: Get nPod details from nebulon ON
+      nebulon.nebulon_on.neb_npod_info:
+        name: "{{ npod_name }}"
+      register: npod
+      when: set_ntp_npod == true
+
+    # Set the npod_uuid variable
+    - name: Store the nPod UUID variable
+      ansible.builtin.set_fact:
+        npod_uuid: "{{ npod.npods[0].uuid }}"
+      when: set_ntp_npod == true
+
+    # Set the NTP servers for all SPUs belonging to the specified nPod.
+    - name: Set NTP server configuration for nPod
+      nebulon.nebulon_on.neb_ntp:
+        npod_uuid: "{{ npod_uuid }}"
+        ntp_servers:
+          - ntp_hostname: "{{ ntp_servers[0].ntp_hostname }}"
+            prefer: "{{ ntp_servers[0].prefer }}"
+            pool: "{{ ntp_servers[0].pool }}"
+          - ntp_hostname: "{{ ntp_servers[1].ntp_hostname }}"
+            prefer: "{{ ntp_servers[1].prefer }}"
+            pool: "{{ ntp_servers[1].pool }}"
+      when: set_ntp_npod == true
+
+    # Update the NTP settings on one or more individual SPUs that are not
+    # configured in a nPod. These remaining tasks only fire when the variable
+    # set_ntp_npod in `set_ntp_vars.yml` is set to 'false'.
+    - name: Get list of SPU serials from inventory
+      ansible.builtin.set_fact:
+        # Extract the spu_serial inventory variable for each server, create a
+        # list of values and assign it to spu_serials.
+        spu_serials: "{{ groups.servers | \
+          map('extract', hostvars, 'spu_serial') | list }}"
+      when: set_ntp_npod == false
+
+    # Loop over all serial numbers contained in spu_serials variable and set
+    # two NTP servers based on ntp_servers list variable.
+    - name: Set NTP server configuration for individual SPU(s)
+      nebulon.nebulon_on.neb_ntp:
+        spu_serial: "{{ item }}"
+        ntp_servers:
+          # Include a server_hostname entry for every NTP server configured
+          # in the set_ntp_vars.yml file. Add/remove server_hostname entries
+          # based on the number of NTP servers to configure.
+          - ntp_hostname: "{{ ntp_servers[0].ntp_hostname }}"
+            prefer: "{{ ntp_servers[0].prefer }}"
+            pool: "{{ ntp_servers[0].pool }}"
+          - ntp_hostname: "{{ ntp_servers[1].ntp_hostname }}"
+            prefer: "{{ ntp_servers[1].prefer }}"
+            pool: "{{ ntp_servers[1].pool }}"
+      loop: "{{ spu_serials }}"
+      when: set_ntp_npod == false

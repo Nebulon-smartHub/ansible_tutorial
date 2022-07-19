@@ -1,0 +1,184 @@
+---
+# This is the example playbook for the "managing users and groups" section in the
+# ansible tutorial. The following modules are used in this playbook:
+# - neb_user - To create, modify or delete a Nebulon ON user
+# - neb_user_group - To create, modify or delete a Nebulon ON user group
+# - neb_user_group_info - To query Nebulon ON user groups
+# - neb_user_info - To query Nebulon ON user groups
+
+# This playbook does the following:
+# - Create the specified nebulon on user group if it doesn't exist
+# - Creates the specified nebulon on user if it doesn't exist
+
+# Example invocation
+# ansible-playbook -i inventory/servers.ini playbooks/managing_users_and_groups.yml
+
+- name: Manage Nebulon ON users and groups
+  hosts: localhost
+  connection: local
+
+  # Module defaults for nebulon_on module
+  # 'neb_username' and 'neb_password' are defined in Ansible Vault
+  module_defaults:
+    group/nebulon.nebulon_on.nebulon:
+      neb_username: "{{ neb_username }}"
+      neb_password: "{{ neb_password }}"
+
+  # Load the encrypted username and password for Nebulon ON and other variables
+  vars_files:
+    - vars_files/managing_users_and_groups_vars.yml
+    - vars_files/credentials.yml
+
+  # Load the Nebulon Ansible collection
+  collections:
+    - nebulon.nebulon_on
+
+  tasks:
+    # Create the Nebulon ON user group.
+    # This requires pulling RBAC policies from an existing group. This example
+    # pulls RBAC UUIDs from the built in "Admin" group.
+    - name: Get all Nebulon ON user groups
+      nebulon.nebulon_on.neb_user_group_info:
+        name: "{{ rbac_policy_doner_group }}"
+      register: rbac_group
+      when: neb_user_group_state == "present"
+
+      # Search across all the existing groups and match the group specified in the
+      # neb_user_group_name variable.
+    - name: Find group policy_uuids
+      ansible.builtin.set_fact:
+        group_policy_uuids: "{{ rbac_group.user_groups |
+          map(attribute='policy_uuids') | list }}"
+      when: neb_user_group_state == "present"
+
+      # policy_uuids will now be populated:
+      # "group_policy_uuids": [
+      #     [
+      #         "80bcc92e-7afe-4989-9820-ef8c5e996e60"
+      #     ]
+      #     ]
+
+    # Create the user group to hold any users to be created
+    - name: Create user group
+      nebulon.nebulon_on.neb_user_group:
+        name: "{{ neb_user_group_name }}"
+        policy_uuids: "{{ group_policy_uuids[0] }}"
+        note: "{{ neb_user_group_note }}"
+        state: "{{ neb_user_group_state }}"
+      when: neb_user_group_state == "present"
+
+    # Before creating the user, see if the user exists
+    # Store the user information in nebulon_on_user
+    - name: Get user by name
+      nebulon.nebulon_on.neb_user_info:
+        name: "{{ neb_user_username }}"
+      register: nebulon_on_user
+      when: neb_user_state == "present"
+
+    # The nebulon_on_user variable now has the following information:
+    # "nebulon_on_user": {
+    #     "changed": false,
+    #     "failed": false,
+    #     "user_groups": [],
+    #     "users": [
+    #         {
+    #             "business_phone": "+1 650 123 4567",
+    #             "change_password": null,
+    #             "email": "toto_kansas@nebulon.com",
+    #             "first_name": "Toto",
+    #             "group_uuids": [
+    #                 "e148de39-b707-4794-9880-f92517d5d6f5"
+    #             ],
+    #             "inactive": false,
+    #             "last_name": "Kansas",
+    #             "mobile_phone": "+1 650 123 4567",
+    #             "name": "toto_kansas@nebulon.com",
+    #             "note": "Created by Ansible Module",
+    #             "policy_uuids": null,
+    #             "preferences": null,
+    #             "support_contact_id": null,
+    #             "uuid": "96328781-f0d0-46bb-a300-5934bf78887e"
+    #         }
+    #     ]
+    # }
+
+    # Remove the specified user group if neb_user_group_state == "absent"
+    - name: Delete user group
+      nebulon.nebulon_on.neb_user_group:
+        name: "{{ neb_user_group_name }}"
+        state: "{{ neb_user_group_state }}"
+      when: neb_user_group_state == "absent"
+
+    # If the user already exists and neb_user_state == "present", assume the
+    # intent is to modify the existing user. Therefore, take the following action.
+    # Execute the "create user" task if neb_user_state == "present" and
+    # nebulon_on_user is not defined.
+    # Execute the "modify user" task if neb_user_state == "present" and
+    # nebulon_on_user is defined.
+    # This is necessary to retain idemopotent operation because specifying the
+    # user's password makes the module attempt to change it and the password
+    # cannot be reset to the same value.
+    - name: Create user
+      nebulon.nebulon_on.neb_user:
+        username: "{{ neb_user_username }}"
+        password: "{{ neb_user_password }}"
+        note: "{{ neb_user_note }}"
+        email: "{{ neb_user_email }}"
+        user_group_name: "{{ neb_user_group }}"
+        first_name: "{{ neb_user_first_name }}"
+        last_name: "{{ neb_user_last_name }}"
+        mobile_phone: "{{ neb_user_mobile_phone }}"
+        business_phone: "{{ neb_user_business_phone }}"
+        inactive: "{{ neb_user_inactive }}"
+        state: "{{ neb_user_state }}"
+      register: new_user_result
+      when: neb_user_state == "present" and nebulon_on_user.users[0] is not defined
+
+    # The contents of the new_user_result variable:
+    # "new_user_result": {
+    #     "changed": true,
+    #     "failed": false,
+    #     "user": {
+    #         "business_phone": "+1 650 123 4567",
+    #         "change_password": null,
+    #         "email": "toto_kansas@nebulon.com",
+    #         "first_name": "Toto",
+    #         "group_uuids": [
+    #             "e148de39-b707-4794-9880-f92517d5d600"
+    #         ],
+    #         "inactive": false,
+    #         "last_name": "Kansas",
+    #         "mobile_phone": "+1 650 123 4567",
+    #         "name": "toto_kansas@nebulon.com",
+    #         "note": "Created by Ansible Module",
+    #         "policy_uuids": null,
+    #         "preferences": null,
+    #         "support_contact_id": null,
+    #         "uuid": "e4242ba3-1c3c-465b-b0f4-ab40b3644000"
+    #     }
+    # }
+
+    # # If the user exists, modify the account with the variables specified
+    # # Note the "password" attribute is removed from this task
+    # - name: Modify user
+    #   nebulon.nebulon_on.neb_user:
+    #     neb_username: "{{ neb_username }}"
+    #     neb_password: "{{ neb_password }}"
+    #     username: "{{ neb_user_username }}"
+    #     note: "{{ neb_user_note }}"
+    #     email: "{{ neb_user_email }}"
+    #     user_group_name: "{{ neb_user_group }}"
+    #     first_name: "{{ neb_user_first_name }}"
+    #     last_name: "{{ neb_user_last_name }}"
+    #     mobile_phone: "{{ neb_user_mobile_phone }}"
+    #     business_phone: "{{ neb_user_business_phone }}"
+    #     inactive: "{{ neb_user_inactive }}"
+    #     state: "{{ neb_user_state }}"
+    #   when: neb_user_state == "present" and nebulon_on_user is defined
+
+    # Delete the specified user if "neb_user_state: absent" has been set
+    - name: Delete user
+      nebulon.nebulon_on.neb_user:
+        username: "{{ neb_user_username }}"
+        state: "{{ neb_user_state }}"
+      when: neb_user_state == "absent"

@@ -1,0 +1,100 @@
+---
+# This is the example playbook for the "working with inventory" playbook in the
+# ansible tutorial. The following modules are used in this playbook:
+# - neb_claim_spu - To claim or release a SPU
+# - neb_update - Manage SPU firmware
+# - neb_spu_info - To query details of Nebulon On SPUs
+
+# This playbook does the following:
+# - Claim SPUs if not already in the users Nebulon ON organization
+# - Updates the firmware on the SPUs
+
+# Example invocation
+# ansible-playbook -i inventory/servers.ini playbooks/working_with_inventory.yml
+
+- name: Claim SPU and update SPU or nPod firmware
+  hosts: localhost
+  connection: local
+
+  # Module defaults for nebulon_on module
+  # 'neb_username' and 'neb_password' are defined in Ansible Vault
+  module_defaults:
+    group/nebulon.nebulon_on.nebulon:
+      neb_username: "{{ neb_username }}"
+      neb_password: "{{ neb_password }}"
+
+  # Load the encrypted username and password for Nebulon ON and other variables
+  vars_files:
+    - vars_files/working_with_inventory_vars.yml
+    - vars_files/credentials.yml
+
+  # Load the Nebulon Ansible collection
+  collections:
+    - nebulon.nebulon_on
+
+  tasks:
+    # Populate the variable "spu_serials" from the [servers] group in inventory
+    # Requires the SPU serial is set per server. For example:
+    # [servers]
+    # server-09.tme.nebulon.com spu_serial=012386435A394xxxx
+    # server-10.tme.nebulon.com spu_serial=012386435A394xxxx
+    - name: Extract SPU serials from "{{ ansible_inventory_sources }}"
+      ansible.builtin.set_fact:
+        spu_serials: "{{ groups.servers | \
+          map('extract', hostvars, 'spu_serial') | list }}"
+
+      # spu_serials now contains a list containing the SPU serial numbers:
+      # "spu_serials": [
+      #     "012386435A3944xxxx",
+      #     "01231C5BA68435xxxx",
+      #     "01234C1DDA9533xxxx",
+      #     "01236AE13059FDxxxx"
+      #     ]
+
+    # Claim (register) the SPUs if they are not in our organization yet
+    # Iterate through the spu_serials list and register/unregister each one
+    - name: Claim SPUs - marking SPU serial as {{ state }} in the organization
+      nebulon.nebulon_on.neb_claim_spu:
+        spu_serial: "{{ item }}"
+        state: "{{ state }}"
+      with_items: "{{ spu_serials }}"
+
+    # Determine if the SPUs are in a pod or not
+    - name: Verify SPUs not part of any existing nPod
+      nebulon.nebulon_on.neb_spu_info:
+        spu_serials: "{{ spu_serials }}"
+        not_in_npod: true
+      register: npod_spus
+
+    # If the SPUs are NOT in a pod, we update them specifying the spu serial and
+    # package name
+    - name: Update one or more SPUs not in a nPod
+      nebulon.nebulon_on.neb_update:
+        spu_serial: "{{ item }}"
+        package_name: "{{ neb_update_package_name }}"
+      with_items: "{{ spu_serials }}"
+      register: spu_update_result
+      when: npod_spus.spus[0].serial is defined
+
+    # Instead of asking for a UUID, ask for nPod name and derive the UUID
+    - name: get nPod
+      nebulon.nebulon_on.neb_npod_info:
+        name: "{{ npod_name }}"
+      register: npod
+      when: npod_spus.spus[0].serial is not defined
+
+    # Set the npod_uuid variable
+    - name: set fact
+      ansible.builtin.set_fact:
+        npod_uuid: "{{ npod.npods[0].uuid }}"
+      when: npod_spus.spus[0].serial is not defined
+
+    # Update all SPUs in the given nPod. This will be done one SPU at a time
+    # with time given for volume resync between updates
+    - name: Update all SPUs in a nPod
+      nebulon.nebulon_on.neb_update:
+        npod_uuid: "{{ npod_uuid }}"
+        package_name: "{{ neb_update_package_name }}"
+        ignore_warning: "{{ ignore_warnings }}"
+      register: npod_update_result
+      when: npod_spus.spus[0].serial is not defined

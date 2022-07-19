@@ -1,0 +1,194 @@
+---
+# This is the example playbook for the "volume management" section in the
+# ansible tutorial. The following modules are used in this playbook:
+# - neb_volume - To create or delete a nPod volume
+# - neb_volume_info - To query nPod volumes
+# - neb_lun - To create or delete a LUN
+
+# This playbook does the following high level actions:
+# - Create a new volume
+# - Export the volume to one or more hosts
+
+# Example invocation
+# ansible-playbook -i inventory/servers.ini playbooks/managing_volumes.yml
+
+- name: Manage Nebulon Volumes
+  hosts: localhost
+  connection: local
+  gather_facts: true
+
+  # Module defaults for nebulon_on module
+  # 'neb_username' and 'neb_password' are defined in Ansible Vault
+  module_defaults:
+    group/nebulon.nebulon_on.nebulon:
+      neb_username: "{{ neb_username }}"
+      neb_password: "{{ neb_password }}"
+
+  # Load the encrypted username and password for Nebulon ON and other variables
+  vars_files:
+    - vars_files/managing_volumes_vars.yml
+    - vars_files/credentials.yml
+
+  # Load the Nebulon Ansible collection
+  collections:
+    - nebulon.nebulon_on
+
+  tasks:
+    # Populate the variable "spu_serials" from the [servers] group in inventory
+    - name: Pull SPU serials from inventory
+      ansible.builtin.set_fact:
+        spu_serials: "{{ groups.servers | \
+          map('extract', hostvars, 'spu_serial') | list }}"
+
+    # Instead of asking for a nPod UUID, ask for nPod name, query Nebulon ON for
+    # nPod details and store that in a variable named `npod`
+    - name: get nPod
+      nebulon.nebulon_on.neb_npod_info:
+        name: "{{ npod_name }}"
+      register: npod
+
+    # Set the npod_uuid variable
+    - name: set fact
+      ansible.builtin.set_fact:
+        npod_uuid: "{{ npod.npods[0].uuid }}"
+
+    # Create a mirrored volume with default owner and backup SPUs
+    # Specific owner and backups can be specified
+    - name: Create a new mirrored volume
+      nebulon.nebulon_on.neb_volume:
+        name: "{{ volume_name }}"
+        # Optionally, use the volume_name as a base and append creation timestamp
+        # name: "{{ volume_name }}_{{ ansible_date_time.iso8601 }}"
+        npod_uuid: "{{ npod_uuid }}"
+        size: "{{ volume_size }}"
+        mirrored: "{{ volume_mirrored }}"
+        # Optionally, manually specify primary and backup SPU serial numbers
+        # owner_spu_serial:
+        # backup_spu_serial:
+        state: "{{ volume_state }}"
+      register: new_volume_result
+      when: volume_mirrored == "true" and volume_state == "present"
+
+    #     "new_volume_result": {
+    #         "changed": true,
+    #         "failed": false,
+    #         "volume": {
+    #             "accessible_by_host_uuids": null,
+    #             "boot": false,
+    #             "creation_time": "2021-10-04T18:24:51",
+    #             "current_owner_host_uuid": "ad5a5431-17e1-4023-8373-a6cf64cc5151",
+    #             "expiration_time": null,
+    #             "lun_uuids": [],
+    #             "name": "test_volume_2021-10-04T18:23:47Z",
+    #             "natural_backup_host_uuid": "3333a278-414b-45d1-8972-611115c76f87",
+    #             "natural_backup_spu_serial": "01234C1DDA9533xxxx",
+    #             "natural_owner_host_uuid": "ad5a5431-17e1-4023-8373-a6cf64cc5151",
+    #             "natural_owner_spu_serial": "012386435A3944xxxx",
+    #             "npod_uuid": "6812fde9-5eeb-46fa-98a2-24c777b6a3b9",
+    #             "read_only_snapshot": false,
+    #             "size_bytes": 1000000000000,
+    #             "snapshot_parent_uuid": null,
+    #             "snapshot_uuids": null,
+    #             "sync_state": "InSync",
+    #             "uuid": "83fb8d72-af50-4708-b2a0-7fda2c401160",
+    #             "wwn": "6f497c20058104f2000ab00000004000"
+    #         }
+    #     }
+    # }
+
+    # This returns all host UUIDs in the nPod
+    # To be used for shared-mirrored and shared LUN exports
+    - name: Find host UUIDs
+      ansible.builtin.set_fact:
+        host_uuids: "{{ npod.npods |
+          selectattr('name', 'equalto', npod_name) |
+          map(attribute='host_uuids') | list }}"
+
+    # {
+    #     "host_uuids": [
+    #         [
+    #             "1e36d01a-f936-4249-9045-28232bb103e7",
+    #             "3333a278-414b-45d1-8972-611115c76f87",
+    #             "9e8ba77c-8e09-4c69-b893-876742f83f34",
+    #             "ad5a5431-17e1-4023-8373-a6cf64cc5151"
+    #         ]
+    #     ]
+    # }
+
+    # Create the LUN export to all servers in the nPod
+    - name: Create new LUN exported to all hosts
+      nebulon.nebulon_on.neb_lun:
+        volume_uuid: "{{ new_volume_result.volume.uuid }}"
+        host_uuids: "{{ item }}"
+        local: "{{ neb_lun_local }}"
+        state: "{{ neb_lun_status }}"
+      with_items:
+        - "{{ host_uuids }}"
+      when: neb_lun_local == false and volume_state == "present"
+
+    # Remove volumes and exports if "volume_state: absent" is set
+
+    # Since the module expects volume UUIDs we go ahead and get a list of volumes
+    # so the user can specify an exact name or partial match for volume deletion
+    - name: Get nPod volumes
+      nebulon.nebulon_on.neb_volume_info:
+        volume_name: "{{ volume_name }}"
+      register: npod_volumes
+      when: volume_state == "absent"
+
+    #     "npod_volumes": {
+    #         "changed": false,
+    #         "failed": false,
+    #         "volumes": [
+    #             {
+    #                 "accessible_by_host_uuids": [
+    #                     "ad5a5431-17e1-4023-8373-a6cf64cc5151",
+    #                     "3333a278-414b-45d1-8972-611115c76f87",
+    #                     "1e36d01a-f936-4249-9045-28232bb103e7",
+    #                     "9e8ba77c-8e09-4c69-b893-876742f83f34"
+    #                 ],
+    #                 "boot": false,
+    #                 "creation_time": "2021-10-04T18:57:26",
+    #                 "current_owner_host_uuid": "ad5a5431-17e1-4023-8373-a6cf64cc5151",
+    #                 "expiration_time": null,
+    #                 "lun_uuids": [
+    #                     "3e1b9779-9519-48ec-a38d-a227b72f4bf6",
+    #                     "70f625d4-0de6-48f7-9e12-fe70045d5a6a",
+    #                     "8cb0c841-9028-466f-a92b-19b85e4015b3",
+    #                     "5f305207-590d-4ea6-b03f-2323e6f137f6"
+    #                 ],
+    #                 "name": "test_volume_2021-10-04T18:56:22Z",
+    #                 "natural_backup_host_uuid": "3333a278-414b-45d1-8972-611115c76f87",
+    #                 "natural_backup_spu_serial": "01234C1DDA9533xxxx",
+    #                 "natural_owner_host_uuid": "ad5a5431-17e1-4023-8373-a6cf64cc5151",
+    #                 "natural_owner_spu_serial": "012386435A3944xxxx",
+    #                 "npod_uuid": "6812fde9-5eeb-46fa-98a2-24c777b6a3b9",
+    #                 "read_only_snapshot": false,
+    #                 "size_bytes": 1000000000000,
+    #                 "snapshot_parent_uuid": null,
+    #                 "snapshot_uuids": null,
+    #                 "sync_state": "InSync",
+    #                 "uuid": "39299627-a09a-4d8b-a804-b090bb3ca5cd",
+    #                 "wwn": "6f497c2005810c95000ab00000007000"
+    #             }
+    #         ]
+    #     }
+    # }
+
+    # Remove the LUN export from all servers in the nPod
+    - name: Remove LUN exported to all hosts
+      nebulon.nebulon_on.neb_lun:
+        volume_uuid: "{{ npod_volumes.volumes[0].uuid }}"
+        host_uuids: "{{ item }}"
+        state: absent
+      with_items:
+        - "{{ host_uuids }}"
+      when: volume_state == "absent"
+
+    # Remove the specified volume
+    - name: Delete existing volume
+      nebulon.nebulon_on.neb_volume:
+        name: "{{ volume_name }}"
+        npod_uuid: "{{ npod_uuid }}"
+        state: absent
+      when: volume_state == "absent"
