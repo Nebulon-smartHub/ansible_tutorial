@@ -1,0 +1,19 @@
+---
+##### working_with_inventory.yml example playbook variables #####
+
+# "neb_update" module variables
+
+# Name of the update package to apply to a SPU or nPod
+neb_update_package_name: "1.3.3 (2229)"
+
+# Name of the nPod to update - required when updating SPUs that are in a nPod
+# SPUs not in a nPod do not require setting the npod_name variable
+npod_name: "Kubernetes_test_pod"
+
+# Ignore warnings when creating a nPod.
+# Required to be set to "false" when creating single node nPods
+ignore_warnings: false
+
+# "neb_claim_spu" module variables
+# Register (present) or release (absent) SPUs
+state: present

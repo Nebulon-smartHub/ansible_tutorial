@@ -1,0 +1,18 @@
+---
+##### set_ntp.yml example playbook variables #####
+
+# NTP servers to use
+# This is a list of NTP servers
+ntp_servers:
+  - ntp_hostname: "0.pool.ntp.org"
+    prefer: true
+    pool: true
+  - ntp_hostname: "1.pool.ntp.org"
+    prefer: false
+    pool: true
+
+# Target nPod to set NTP configuration
+npod_name: "Kubernetes_test_pod"
+
+# If set to `true` update NTP for whole nPod
+set_ntp_npod: false

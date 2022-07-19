@@ -1,0 +1,53 @@
+---
+##### managing_users_and_groups.yml example playbook variables #####
+
+# neb_user_group
+
+# Nebulon ON user group name
+neb_user_group_name: "example_group"
+
+# Nebulon ON user group note
+neb_user_group_note: "Created by Ansible module"
+
+# Create (present) or delete (absent) the user group
+neb_user_group_state: absent
+
+# Existing user group to pull RBAC policies from
+# This group must exist and have RBAC policies attached to it
+rbac_policy_doner_group: "Admin"
+
+# neb_user
+
+# Nebulon ON username to create. Can be any unique string but
+# email address is recommended
+neb_user_username: "toto_kansas@nebulon.com"
+
+# Password to use for the account
+neb_user_password: "YourP@ssw0rd"
+
+# Note to attach to the account.
+neb_user_note: "Created by Ansible Module"
+
+# eMail address for the account.
+neb_user_email: "toto_kansas@nebulon.com"
+
+# Existing user group to add the new user to
+neb_user_group: "Monitor"
+
+# First name of the user to create
+neb_user_first_name: "Toto"
+
+# Last name of the user to create
+neb_user_last_name: "Kansas"
+
+# Mobile phone number for the user to create. Requires country code.
+neb_user_mobile_phone: "+1 650 123 4567"
+
+# Business number for the user to create. Requires country code.
+neb_user_business_phone: "+1 650 123 4567"
+
+# Specifies if the user is active (false) or inactive (true)
+neb_user_inactive: false
+
+# Create (present) or remove (absent) the specified user account
+neb_user_state: absent

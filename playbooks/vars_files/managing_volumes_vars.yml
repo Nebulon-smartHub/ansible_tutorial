@@ -1,0 +1,33 @@
+---
+##### managing_users_and_groups.yml example playbook variables #####
+
+# "neb_volume" module variables
+
+# Name of the nPod to target for managing volumes
+npod_name: "Kubernetes_test_pod"
+
+# Name of a volume to manage
+volume_name: "test_volume"
+
+# Set the mirrored property of the volume: true:false
+volume_mirrored: "true"
+
+# Volume size in bytes
+volume_size: 1000000000000
+
+# If specified, will set the owner SPU for a volume
+volume_owner_spu_serial:
+
+# If specified, will set the backup SPU for a volume
+# Applicable only if `volume_mirrored: true`
+volume_backup_spu_serial:
+
+# State of the volume: present:absent
+volume_state: present
+
+# "neb_lun" module variables
+
+# Determines if the LUN export should be visible to all servers
+# (npod_lun_local: false) or only the owner server (npod_lun_local: true)
+neb_lun_local: false
+neb_lun_status: present

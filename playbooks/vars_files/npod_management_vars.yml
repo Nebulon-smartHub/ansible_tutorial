@@ -1,0 +1,99 @@
+---
+##### npod_management.yml example playbook variables #####
+
+# "neb_npod" module variables
+
+# Name of the nPod to manage
+npod_name: "Kubernetes_test_pod"
+
+# Name of the nPod template to apply to the nPod being created
+npod_template: K8s_Local
+
+# Name of the nPod group to add the nPod to
+npod_group: Kubernetes
+
+# Create (present) or delete (absent) the specified nPod
+npod_state: present
+
+# LACP mode to use when configuring LACP bonds on the data interfaces of a SPU
+# Options are: BondModeNone, BondMode8023ad, BondModeBalanceALB
+# Default: BondMode8023ad
+bond_mode: BondMode8023ad
+
+# LACP bond transmit hashing policy
+# Options are: TransmitHashPolicyLayer2, TransmitHashPolicyLayer23, TransmitHashPolicyLayer34
+# Default: TransmitHashPolicyLayer34
+bond_transmit_hash_policy: TransmitHashPolicyLayer34
+
+# LACP transmit hash rate
+# Options are: LACPTransmitRateFast, LACPTransmitRateSlow
+# Default: LACPTransmitRateFast
+bond_lacp_transmit_rate: LACPTransmitRateFast
+
+# Netmask length to apply to SPU data interfaces
+netmask_bits: 24
+
+# SPU data interface names. Do not change these.
+interfaces:
+  - enP8p1s0f0np0
+  - enP8p1s0f1np1
+
+# "neb_npod_group" variables
+
+# Name of the nPod group to manage
+neb_npod_group_note: "Created by Ansible module"
+
+# Create (present) or delete (absent) the specified nPod group
+neb_npod_group_state: present
+
+# "neb_npod_template" and "neb_npod_template_info" variables
+
+# Name of the nPod template to manage
+npod_template_name: example
+
+# Expected savings factor for data written to the nPod. Workload specific.
+# For example:
+# 'Typical' VMware environments usually get approximately 2
+# Databases are typically 1 unless making clones
+# VDI/DaaS are typically 5 or greater
+savings_factor: 2
+
+# Mirror the data volumes, true|false
+# If set to true, boot volumes will also be mirrored
+mirrored_volume: true
+
+# Number of data volumes to create. Applies only when mirrored_volume=false
+# Shared/mirrored volumes use savings_factor
+volume_count: 1
+
+# Create a boot volume for each server? true|false
+boot_volume: true
+
+# URL hosting a bootable image. Must be reachable from the management
+# network of the SPUs. Only applies if boot_volume=true
+boot_image_url: "http://homes.sc0.nebulon.com/aaron/cloud-init/ubuntu22044/ubuntu_22.04.4_cloudinit_v2.img.xz"
+
+# Name (family) of the template operating system
+npod_template_os: "Ubuntu Linux (64-bit)"
+
+# Data volume size in bytes - 2 TiB data volume
+volume_size_bytes: 2000000000000
+
+# Are volumes exported to all hosts? true|false
+# Looks like shared_volume is removed in SDK 2
+# shared_volume: true
+
+#OS boot volume size (in bytes) - 40GB boot volume
+boot_volume_size_bytes: 40000000000
+
+# Application running in the nPod
+npod_template_app: "Kubernetes"
+
+# Note to apply to the nPod template
+npod_template_note: "Created by Ansible module"
+
+# If applying a snapshot template, provide the UUID here
+snapshot_schedule_template_uuids:
+
+# Create (present) or delete (absent) the specified nPod template
+template_state: present

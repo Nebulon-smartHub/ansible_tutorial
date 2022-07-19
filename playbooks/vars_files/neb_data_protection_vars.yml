@@ -1,0 +1,85 @@
+---
+##### neb_data_protection.yml example playbook variables #####
+
+# "neb_clone" module variables
+
+# Volume to use as a clone source. This can be a regular volume or snapshot
+neb_clone_source_volume_name: "test_volume"
+
+# Name of the new cloned volume
+neb_clone_name: "my_cloned_volume"
+
+# Create (present) or remove (absent) a clone
+neb_clone_state: "absent"
+
+# "neb_snapshot_template" module variables
+
+# nPod to target for snapshot
+npod_name: "Kubernetes_test_pod"
+
+# Snapshot source volume name
+volume_name: "test_volume"
+
+# Expiration time for snapshot, expressed in seconds
+# Determines when a snapshot will be automatically deleted
+neb_snapshot_expiration_seconds: 3600
+
+# Retention time for snapshot, expressed in seconds
+# Determines how long a snapshot is protected from deletion
+neb_snapshot_retention_seconds: 1800
+
+# Create (present) or remove (absent) a snapshot
+neb_snapshot_state: "absent"
+
+# neb_snapshot_template and neb_snapshot_template_info
+snapshot_name_pattern: "TestPattern"
+
+## scheduleInput - create a snapshot schedule
+
+# Name for the snapshot template
+snapshot_template_name: "temp_snapshot_template"
+
+# The minutes of the time when an operation should be executed
+schedule_minutes: 2
+
+# The hours of the time when an operation should be executed
+schedule_hours: 1
+
+# The days of the week when an operation should be executed
+schedule_days_of_week: 2
+
+# The days in the month when an operation should be executed
+schedule_days_of_month: 3
+
+# The months in the year when an operation should be executed
+schedule_months: 1
+
+## CreateSnapshotScheduleTemplateInput - create a snapshot schedule template
+
+# Number of weeks till the snapshot is expired
+expiration_weeks: 1
+
+# Number of days till the snapshot is expired
+expiration_days: 2
+
+# Number of hours till the snapshot is expired
+expiration_hours: 8
+
+# Number of weeks to protect snapshot from deletion
+retention_weeks: 1
+
+# Number of days to protect snapshot from deletion
+retention_days: 2
+
+# Number of hours to protect snapshot from deletion
+retention_hours: 6
+
+# Include boot volumes in snapshot template
+snap_boot_volume: false
+
+# "neb_lun" module variables
+# Create the LUN as local (true) or shared (false)
+neb_lun_local: true
+
+# Create (present) or remove (absent) the specified LUN
+neb_lun_status: "absent"
