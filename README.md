@@ -17,6 +17,7 @@ and instructional use only and are provided as-is. Please see the tutorial for f
 The repository contains the following file structure:
 
 ```shell
+├── .vault_pass         # Ansible Vault password - Excluded from repo, you must create this file 
 ├── README.md
 ├── ansible.cfg         # project specific ansible configuration file
 ├── inventory           # this directory contains an example inventory
