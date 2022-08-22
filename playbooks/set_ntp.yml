@@ -17,8 +17,8 @@
   # 'neb_username' and 'neb_password' are defined in Ansible Vault
   module_defaults:
     group/nebulon.nebulon_on.nebulon:
-      neb_username: "{{ neb_username }}"
-      neb_password: "{{ neb_password }}"
+      neb_username: "{{ vault_neb_username }}"
+      neb_password: "{{ vault_neb_password }}"
 
   # Load the encrypted username and password for Nebulon ON and other variables
   vars_files:
@@ -40,13 +40,13 @@
       nebulon.nebulon_on.neb_npod_info:
         name: "{{ npod_name }}"
       register: npod
-      when: set_ntp_npod == true
+      when: set_ntp_npod
 
     # Set the npod_uuid variable
     - name: Store the nPod UUID variable
       ansible.builtin.set_fact:
         npod_uuid: "{{ npod.npods[0].uuid }}"
-      when: set_ntp_npod == true
+      when: set_ntp_npod
 
     # Set the NTP servers for all SPUs belonging to the specified nPod.
     - name: Set NTP server configuration for nPod
@@ -59,18 +59,17 @@
           - ntp_hostname: "{{ ntp_servers[1].ntp_hostname }}"
             prefer: "{{ ntp_servers[1].prefer }}"
             pool: "{{ ntp_servers[1].pool }}"
-      when: set_ntp_npod == true
+      when: set_ntp_npod
 
     # Update the NTP settings on one or more individual SPUs that are not
     # configured in a nPod. These remaining tasks only fire when the variable
     # set_ntp_npod in `set_ntp_vars.yml` is set to 'false'.
-    - name: Get list of SPU serials from inventory
+
+    # Populate the variable "spu_serials" from the [servers] group in inventory
+    - name: Pull SPU serials from inventory
       ansible.builtin.set_fact:
-        # Extract the spu_serial inventory variable for each server, create a
-        # list of values and assign it to spu_serials.
         spu_serials: "{{ groups.servers | \
           map('extract', hostvars, 'spu_serial') | list }}"
-      when: set_ntp_npod == false
 
     # Loop over all serial numbers contained in spu_serials variable and set
     # two NTP servers based on ntp_servers list variable.
@@ -88,4 +87,6 @@
             prefer: "{{ ntp_servers[1].prefer }}"
             pool: "{{ ntp_servers[1].pool }}"
       loop: "{{ spu_serials }}"
-      when: set_ntp_npod == false
+      register: spu_ntp
+      when: not set_ntp_npod 
+      changed_when: spu_ntp.changed

@@ -3,4 +3,4 @@
 
 # Get host information by individual host or group.
 # If `true` then use inventory group, else use single host
-get_host_group_info: true
+get_host_group_info: false

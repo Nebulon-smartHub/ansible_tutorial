@@ -21,8 +21,8 @@
   # 'neb_username' and 'neb_password' are defined in Ansible Vault
   module_defaults:
     group/nebulon.nebulon_on.nebulon:
-      neb_username: "{{ neb_username }}"
-      neb_password: "{{ neb_password }}"
+      neb_username: "{{ vault_neb_username }}"
+      neb_password: "{{ vault_neb_password }}"
 
   # Load the encrypted username and password for Nebulon ON and other variables
   vars_files:
@@ -34,11 +34,6 @@
     - nebulon.nebulon_on
 
   tasks:
-    # Populate the variable "spu_serials" from the [servers] group in inventory
-    - name: Pull SPU serials from inventory
-      ansible.builtin.set_fact:
-        spu_serials: "{{ groups.servers | \
-          map('extract', hostvars, 'spu_serial') | list }}"
 
     # Instead of asking for a nPod UUID, ask for nPod name, query Nebulon ON for
     # nPod details and store that in a variable named `npod`
@@ -67,7 +62,7 @@
         # backup_spu_serial:
         state: "{{ volume_state }}"
       register: new_volume_result
-      when: volume_mirrored == "true" and volume_state == "present"
+      when: volume_mirrored and volume_state == "present"
 
     #     "new_volume_result": {
     #         "changed": true,
@@ -117,14 +112,13 @@
 
     # Create the LUN export to all servers in the nPod
     - name: Create new LUN exported to all hosts
-      nebulon.nebulon_on.neb_lun:
+      nebulon.nebulon_on.neb_volume_access:
+        neb_username: "{{ vault_neb_username }}"
+        neb_password: "{{ vault_neb_password }}"
         volume_uuid: "{{ new_volume_result.volume.uuid }}"
-        host_uuids: "{{ item }}"
-        local: "{{ neb_lun_local }}"
         state: "{{ neb_lun_status }}"
-      with_items:
-        - "{{ host_uuids }}"
-      when: neb_lun_local == false and volume_state == "present"
+      register: lun_result
+      when: not neb_lun_local and volume_state == "present"
 
     # Remove volumes and exports if "volume_state: absent" is set
 
@@ -177,12 +171,11 @@
 
     # Remove the LUN export from all servers in the nPod
     - name: Remove LUN exported to all hosts
-      nebulon.nebulon_on.neb_lun:
+      nebulon.nebulon_on.neb_volume_access:
+        neb_username: "{{ vault_neb_username }}"
+        neb_password: "{{ vault_neb_password }}"
         volume_uuid: "{{ npod_volumes.volumes[0].uuid }}"
-        host_uuids: "{{ item }}"
         state: absent
-      with_items:
-        - "{{ host_uuids }}"
       when: volume_state == "absent"
 
     # Remove the specified volume

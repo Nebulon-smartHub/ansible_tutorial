@@ -10,7 +10,7 @@ neb_clone_source_volume_name: "test_volume"
 neb_clone_name: "my_cloned_volume"
 
 # Create (present) or remove (absent) a clone
-neb_clone_state: "absent"
+neb_clone_state: "present"
 
 # "neb_snapshot_template" module variables
 
@@ -29,7 +29,7 @@ neb_snapshot_expiration_seconds: 3600
 neb_snapshot_retention_seconds: 1800
 
 # Create (present) or remove (absent) a snapshot
-neb_snapshot_state: "absent"
+neb_snapshot_state: "present"
 
 # neb_snapshot_template and neb_snapshot_template_info
 snapshot_name_pattern: "TestPattern"
@@ -75,11 +75,15 @@ retention_days: 2
 retention_hours: 6
 
 # Include boot volumes in snapshot template
-snap_boot_volume: false
+snap_boot_volume: true
 
-# "neb_lun" module variables
-# Create the LUN as local (true) or shared (false)
-neb_lun_local: true
+# "neb_volume_access" module variables
+# neb_lun_status: Determines LUN export availability in the nPod
+# Possible values:
+# - present -> Export the volume to all nPod servers. Same as "all"
+# - absent -> Remove the volume export from all nPod servers.
+# - all -> Export the volume to all nPod servers. Same as "present"
+# - host -> Export the volume to a single, specific server; host_uuid must be provided.
+# - local -> Export the volume only to the server owning the volume
 
-# Create (present) or remove (absent) the specified LUN
-neb_lun_status: "absent"
+neb_lun_status: "local"

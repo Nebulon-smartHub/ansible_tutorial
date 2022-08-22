@@ -10,7 +10,7 @@ npod_name: "Kubernetes_test_pod"
 volume_name: "test_volume"
 
 # Set the mirrored property of the volume: true:false
-volume_mirrored: "true"
+volume_mirrored: true
 
 # Volume size in bytes
 volume_size: 1000000000000
@@ -23,11 +23,14 @@ volume_owner_spu_serial:
 volume_backup_spu_serial:
 
 # State of the volume: present:absent
-volume_state: present
+volume_state: "present"
 
-# "neb_lun" module variables
-
-# Determines if the LUN export should be visible to all servers
-# (npod_lun_local: false) or only the owner server (npod_lun_local: true)
-neb_lun_local: false
-neb_lun_status: present
+# "neb_volume_access" module variables
+# neb_lun_status: Determines LUN export availability in the nPod
+# Possible values:
+# - present -> Export the volume to all nPod servers. Same as "all"
+# - absent -> Remove the volume export from all nPod servers.
+# - all -> Export the volume to all nPod servers. Same as "present"
+# - host -> Export the volume to a single, specific server; host_uuid must be provided.
+# - local -> Export the volume only to the server owning the volume
+neb_lun_status: "present"

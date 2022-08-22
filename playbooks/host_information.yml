@@ -22,8 +22,8 @@
   # 'neb_username' and 'neb_password' are defined in Ansible Vault
   module_defaults:
     group/nebulon.nebulon_on.nebulon:
-      neb_username: "{{ neb_username }}"
-      neb_password: "{{ neb_password }}"
+      neb_username: "{{ vault_neb_username }}"
+      neb_password: "{{ vault_neb_password }}"
 
   # Load the encrypted username and password for Nebulon ON and other variables
   vars_files:
@@ -41,7 +41,7 @@
       nebulon.nebulon_on.neb_host_info:
         host_name: server-09.tme.nebulon.com
       register: host_info
-      when: get_host_group_info == false
+      when: not get_host_group_info
 
     # The host_info variable now contains the following data:
     # ok: [127.0.0.1] => {
@@ -86,7 +86,7 @@
     #         ]
     #     }
     # }
-    
+
     # You can then print out a filtered list containing the information
     # required, such as host name, serial and SPU serial number.
     - name: Print out single host information
@@ -97,7 +97,7 @@
           {name: name, \
           serial: chassis_serial, \
           spu_serials: spu_serials}"
-      when: get_host_group_info == false
+      when: not get_host_group_info
 
       # ok: [127.0.0.1] => {
       #   "msg": [
@@ -121,7 +121,7 @@
         host_name: "{{ item }}"
       with_items: "{{ groups.servers }}"
       register: host_info
-      when: get_host_group_info == true
+      when: get_host_group_info
 
     # You can then print out a filtered list containing the information
     # required, such as host name, serial and SPU serial number.
@@ -133,7 +133,7 @@
           {name: name, \
           serial: chassis_serial, \
           spu_serials: spu_serials}"
-      when: get_host_group_info == true
+      when: get_host_group_info
 
       # ok: [127.0.0.1] => {
       #     "msg": [

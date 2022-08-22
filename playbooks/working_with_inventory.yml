@@ -20,8 +20,8 @@
   # 'neb_username' and 'neb_password' are defined in Ansible Vault
   module_defaults:
     group/nebulon.nebulon_on.nebulon:
-      neb_username: "{{ neb_username }}"
-      neb_password: "{{ neb_password }}"
+      neb_username: "{{ vault_neb_username }}"
+      neb_password: "{{ vault_neb_password }}"
 
   # Load the encrypted username and password for Nebulon ON and other variables
   vars_files:

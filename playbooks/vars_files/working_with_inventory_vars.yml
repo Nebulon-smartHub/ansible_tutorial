@@ -16,4 +16,4 @@ ignore_warnings: false
 
 # "neb_claim_spu" module variables
 # Register (present) or release (absent) SPUs
-state: present
+state: "present"
