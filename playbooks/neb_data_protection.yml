@@ -203,23 +203,10 @@
     # was created from.
     - name: Create new LUN export
       nebulon.nebulon_on.neb_volume_access:
-        neb_username: "{{ vault_neb_username }}"
-        neb_password: "{{ vault_neb_password }}"
         volume_uuid: "{{ new_clone_result.volumes[0].uuid }}"
         state: "{{ neb_lun_status }}"
       register: new_lun_export
-      when: neb_lun_status == "present"
-
-    # - name: Create new LUN exported to host owning the volume
-    #   nebulon.nebulon_on.neb_lun:
-    #     volume_uuid: "{{ new_clone_result.volumes[0].uuid }}"
-    #     host_uuids: "{{ item }}"
-    #     local: "{{ neb_lun_local }}"
-    #     state: "{{ neb_lun_status }}"
-    #   with_items:
-    #     - "{{ new_clone_result.volumes[0].current_owner_host_uuid }}"
-    #   register: new_lun_export
-    #   when: neb_lun_status == "present"
+      when: neb_lun_status != "absent"
 
     # "new_lun_export": {
     #     "changed": true,
@@ -255,12 +242,12 @@
     # state is set to absent
 
     # Get the details of the parent volume the snapshot was created from
-    - name: Get volume details for the snapshot to remove
+    - name: Get volume details
       nebulon.nebulon_on.neb_volume_info:
         npod_uuid: "{{ npod_uuid }}"
         base_only: false
       register: parent_volume
-      when: neb_snapshot_state == "absent"
+      when: (neb_snapshot_state == "absent") or (neb_lun_status == "absent")
 
     # This returns the snap_uuid as a list
     - name: Find snapshot uuid to remove
@@ -289,7 +276,7 @@
       when: (neb_snapshot_state == "absent") and (volume_uuid | default(None))
 
     # Find the UUID of the clone volume. Find the volume that matches the variable `neb_clone_name` and then map the UUID
-    # of that volume. The `clone_volume_uuid` is a required input for the neb_lun module.
+    # of that volume. The `clone_volume_uuid` is a required input for the neb_volume_access module.
     - name: Find parent volume uuid for the snapshot
       ansible.builtin.set_fact:
         clone_volume_uuid: "{{ parent_volume.volumes |
@@ -300,19 +287,9 @@
     # Remove the LUN export from all servers in the nPod
     - name: Remove LUN export
       nebulon.nebulon_on.neb_volume_access:
-        neb_username: "{{ vault_neb_username }}"
-        neb_password: "{{ vault_neb_password }}"
         volume_uuid: "{{ clone_volume_uuid[0] }}"
         state: absent
       when: (neb_lun_status == "absent") and (clone_volume_uuid | default(None))
-
-    # # Remove the LUN export when neb_lun_status == "absent"
-    # - name: Remove LUN export
-    #   nebulon.nebulon_on.neb_lun:
-    #     volume_uuid: "{{ clone_volume_uuid[0] }}"
-    #     local: "{{ neb_lun_local }}"
-    #     state: "{{ neb_lun_status }}"
-    #   when: (neb_lun_status == "absent") and (clone_volume_uuid | default(None))
 
     # Remove the clone when neb_clone_state == "absent"
     - name: Remove clone volume
