@@ -111,14 +111,12 @@
     # }
 
     # Create the LUN export to all servers in the nPod
-    - name: Create new LUN exported to all hosts
+    - name: Create new LUN export
       nebulon.nebulon_on.neb_volume_access:
-        neb_username: "{{ vault_neb_username }}"
-        neb_password: "{{ vault_neb_password }}"
         volume_uuid: "{{ new_volume_result.volume.uuid }}"
         state: "{{ neb_lun_status }}"
       register: lun_result
-      when: not neb_lun_local and volume_state == "present"
+      when: (volume_state == "present") and (neb_lun_status == "present" or neb_lun_status == "all") 
 
     # Remove volumes and exports if "volume_state: absent" is set
 
@@ -128,7 +126,6 @@
       nebulon.nebulon_on.neb_volume_info:
         volume_name: "{{ volume_name }}"
       register: npod_volumes
-      when: volume_state == "absent"
 
     #     "npod_volumes": {
     #         "changed": false,
@@ -170,13 +167,11 @@
     # }
 
     # Remove the LUN export from all servers in the nPod
-    - name: Remove LUN exported to all hosts
+    - name: Remove LUN export
       nebulon.nebulon_on.neb_volume_access:
-        neb_username: "{{ vault_neb_username }}"
-        neb_password: "{{ vault_neb_password }}"
         volume_uuid: "{{ npod_volumes.volumes[0].uuid }}"
         state: absent
-      when: volume_state == "absent"
+      when: (volume_state == "absent") or (neb_lun_status == "absent")
 
     # Remove the specified volume
     - name: Delete existing volume
