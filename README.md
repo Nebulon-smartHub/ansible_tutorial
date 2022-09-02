@@ -8,7 +8,7 @@ and instructional use only and are provided as-is. Please see the tutorial for f
 ## Prerequisites
 
 - `nebpyclient` version 2.0.8
-- `nebulon_on` Ansible module version 1.3.1
+- `nebulon_on` Ansible module version 1.3.0
 - Ansible 3.0 (Ansible Core 2.10) or later
 - Python 3.6 or later
 

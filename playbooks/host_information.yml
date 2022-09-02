@@ -5,6 +5,7 @@
 
 # The following modules are used in this playbook:
 # - neb_host_info - Get host details
+# - neb_host - Set host information
 
 # This playbook does the following:
 # - Dump host information. The following selectors can be used:
@@ -35,11 +36,34 @@
     - nebulon.nebulon_on
 
   tasks:
+    # Populate the variable "spu_serials" and "name" from the [servers] group in inventory
+    - name: Pull SPU serials from inventory
+      ansible.builtin.set_fact:
+        spu_serials: "{{ groups.servers | map('extract', hostvars, 'spu_serial') | list }}"
+        host_names: "{{ groups.servers | map('extract', hostvars, 'inventory_hostname') | list }}"
+      tags: host
+
+    # The neb_host module can be used to set the display name of a host in nebulon ON, as well
+    # as an informational note. Nebulon recommends setting the name of a host to its fully
+    # qualified domain name (FQDN). You can use the hosts SPU serial number, chassis serial number
+    # board serial number or host UUID when setting the host name or note.
+ 
+    # You can set the nebulon ON host "name" and "note" fields for the first server in the 
+    # servers inventory group.
+    - name: Set the name and a note for a single host
+      nebulon.nebulon_on.neb_host:
+        host_name: "{{ host_names[0] }}"
+        spu_serial: "{{ spu_serials[0] }}"
+        note: "TME lab host"
+      register: host_set_info
+      when: not get_host_group_info
+      tags: set_hostname
+
     # You can get the information for a single host using its hostname as defined in nebulon ON. This will only fire
     # when get_host_group_info is set to false.
     - name: Get individual host info from server hostname
       nebulon.nebulon_on.neb_host_info:
-        host_name: server-09.tme.nebulon.com
+        host_name: "{{ host_names[0] }}"
       register: host_info
       when: not get_host_group_info
 
@@ -74,7 +98,7 @@
     #                 "memory_bytes": 262136000000,
     #                 "model": "ThinkSystem SR650 -[7X06CTO1WW]-",
     #                 "name": "server-09.tme.nebulon.com",
-    #                 "note": "",
+    #                 "note": "TME lab host",
     #                 "npod_uuid": "5d0c15eb-18ad-4c3b-bba6-e435988a408a",
     #                 "rack_uuid": "5ab95a2a-40bf-4f3f-b082-01364322479d",
     #                 "spu_count": 1,
@@ -88,7 +112,7 @@
     # }
 
     # You can then print out a filtered list containing the information
-    # required, such as host name, serial and SPU serial number.
+    # required, such as host name, note, serial and SPU serial number.
     - name: Print out single host information
       ansible.builtin.debug:
         msg: "{{ host_info | json_query(host_info_query) }}"
@@ -96,19 +120,17 @@
         host_info_query: "hosts[].\
           {name: name, \
           serial: chassis_serial, \
-          spu_serials: spu_serials}"
+          spu_serials: spu_serials, \
+          note: note}"
       when: not get_host_group_info
 
-      # ok: [127.0.0.1] => {
-      #   "msg": [
-      #       {
-      #           "name": "server-09.tme.nebulon.com",
-      #           "serial": "J1001234",
-      #           "spu_serials": [
-      #               "014386435A39449249"
-      #           ]
-      #       }
-      #   ]
+      #  {
+      #     "name": "server-09.tme.nebulon.com",
+      #     "note": "TME lab host",
+      #     "serial": "J1001234",
+      #     "spu_serials": [
+      #         "014386435A39449249"
+      #     ]
       # }
 
     # Similarly, the host information for a group of servers can be retrieved

@@ -3,7 +3,7 @@
 # ansible tutorial. The following modules are used in this playbook:
 # - neb_volume - To create or delete a nPod volume
 # - neb_volume_info - To query nPod volumes
-# - neb_lun - To create or delete a LUN
+# - neb_volume_access - To create or delete a LUN
 
 # This playbook does the following high level actions:
 # - Create a new volume
@@ -111,6 +111,7 @@
     # }
 
     # Create the LUN export to all servers in the nPod
+    # See the managing_volume_vars.yml file for neb_volume_access valid states.
     - name: Create new LUN export
       nebulon.nebulon_on.neb_volume_access:
         volume_uuid: "{{ new_volume_result.volume.uuid }}"
