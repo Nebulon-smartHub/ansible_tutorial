@@ -91,25 +91,6 @@
     #     }
     # }
 
-    # This returns all host UUIDs in the nPod
-    # To be used for shared-mirrored and shared LUN exports
-    - name: Find host UUIDs
-      ansible.builtin.set_fact:
-        host_uuids: "{{ npod.npods |
-          selectattr('name', 'equalto', npod_name) |
-          map(attribute='host_uuids') | list }}"
-
-    # {
-    #     "host_uuids": [
-    #         [
-    #             "1e36d01a-f936-4249-9045-28232bb103e7",
-    #             "3333a278-414b-45d1-8972-611115c76f87",
-    #             "9e8ba77c-8e09-4c69-b893-876742f83f34",
-    #             "ad5a5431-17e1-4023-8373-a6cf64cc5151"
-    #         ]
-    #     ]
-    # }
-
     # Create the LUN export to all servers in the nPod
     # See the managing_volume_vars.yml file for neb_volume_access valid states.
     - name: Create new LUN export
