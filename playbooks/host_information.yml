@@ -103,7 +103,7 @@
     #                 "rack_uuid": "5ab95a2a-40bf-4f3f-b082-01364322479d",
     #                 "spu_count": 1,
     #                 "spu_serials": [
-    #                     "014386435A39449249"
+    #                     "014386435A39441111"
     #                 ],
     #                 "uuid": "ad5a5431-17e1-4023-8373-a6cf64cc5150"
     #             }
@@ -129,7 +129,7 @@
       #     "note": "TME lab host",
       #     "serial": "J1001234",
       #     "spu_serials": [
-      #         "014386435A39449249"
+      #         "014386435A39441111"
       #     ]
       # }
 
@@ -163,28 +163,28 @@
       #             "name": "server-09.tme.nebulon.com",
       #             "serial": "J1001234",
       #             "spu_serials": [
-      #                 "014386435A39449249"
+      #                 "014386435A39441111"
       #             ]
       #         },
       #         {
       #             "name": "server-10.tme.nebulon.com",
       #             "serial": "J1001235",
       #             "spu_serials": [
-      #                 "01231C5BA684357532"
+      #                 "014386435A39442222"
       #             ]
       #         },
       #         {
       #             "name": "server-11.tme.nebulon.com",
       #             "serial": "J1001236",
       #             "spu_serials": [
-      #                 "01234C1DDA9533223E"
+      #                 "014386435A39443333"
       #             ]
       #         },
       #         {
       #             "name": "server-12.tme.nebulon.com",
       #             "serial": "J1001237",
       #             "spu_serials": [
-      #                 "01236AE13059FD35RT"
+      #                 "014386435A39444444"
       #             ]
       #         }
       #     ]
