@@ -42,8 +42,6 @@
 
     - name: Get SPU(s) capacity information
       nebulon.nebulon_on.neb_capacity_info:
-        # neb_username: "{{ vault_neb_username }}"
-        # neb_password: "{{ vault_neb_password }}"
         spu_serial: "{{ item }}"
       register: spu_capacity_info
       loop: "{{ spu_serials }}"
@@ -157,8 +155,6 @@
 
     - name: Get nPod capacity information
       nebulon.nebulon_on.neb_capacity_info:
-        neb_username: "{{ vault_neb_username }}"
-        neb_password: "{{ vault_neb_password }}"
         npod_uuid: "{{ npod_uuid }}"
       register: npod_capacity_info
       when: get_neb_npod_capacity
@@ -190,8 +186,6 @@
     # Query for volume capacity information for only the first volume returned from neb_volume_info.
     - name: Get volume capacity information
       nebulon.nebulon_on.neb_capacity_info:
-        # neb_username: "{{ vault_neb_username }}"
-        # neb_password: "{{ vault_neb_password }}"
         volume_uuid: "{{ npod_volumes.volumes[0].uuid }}"
       register: volume_capacity_info
       when: get_neb_volume_capacity
