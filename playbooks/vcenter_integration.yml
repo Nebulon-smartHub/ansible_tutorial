@@ -1,0 +1,67 @@
+---
+# This is the example playbook for the "vCenter integration" playbook in the
+# ansible tutorial. This playbook is used to configure the vCenter integration feature
+# of nebulon ON.
+
+# The following modules are used in this playbook:
+# - neb_vcenter - Manage vCenter integration
+
+# This playbook does the following:
+# Sets or unsets the vCenter integration feature for nebulon ON.
+
+# Example invocation
+# ansible-playbook -i inventory/servers.ini playbooks/vcenter_integration.yml
+
+- name: vCenter integration
+  hosts: localhost
+  connection: local
+
+  # Module defaults for nebulon_on module
+  # 'neb_username' and 'neb_password' are defined in Ansible Vault
+  module_defaults:
+    group/nebulon.nebulon_on.nebulon:
+      neb_username: "{{ vault_neb_username }}"
+      neb_password: "{{ vault_neb_password }}"
+      insecure: "{{ insecure }}"
+
+  # Load the encrypted username and password for Nebulon ON and other variables
+  vars_files:
+    - vars_files/vcenter_integration_vars.yml
+    - vars_files/credentials.yml
+
+  # Load the Nebulon Ansible collection
+  collections:
+    - nebulon.nebulon_on
+
+  tasks:
+    # This task enables the vCenter integration and allows nebulon ON to dynamically create
+    # affinity rules for VMs. This task fires when both enable_affinity_rules and enable_integration
+    # are true.
+    - name: Enable the vCenter integration with all options enabled
+      nebulon.nebulon_on.neb_vcenter:
+        npod_name: "{{ npod_name }}"
+        vcenter_username: "{{ vcenter_username }}"
+        vcenter_password: "{{ vcenter_password }}"
+        vcenter_network_identity: "{{ vcenter_network_identity }}"
+        vcenter_ssl_port: "{{ vcenter_ssl_port }}"
+        enable_affinity_rules: "{{ enable_affinity_rules }}"
+        state: present
+      when: enable_affinity_rules and enable_integration
+
+    # This task enables the vCenter integration and but does not enable affinity rules.
+    # This task fires when enable_integration is true and enable_affinity_rules is false.
+    - name: Enable the vCenter integration without affinity rules
+      nebulon.nebulon_on.neb_vcenter:
+        npod_name: "{{ npod_name }}"
+        vcenter_username: "{{ vcenter_username }}"
+        vcenter_password: "{{ vcenter_password }}"
+        vcenter_network_identity: "{{ vcenter_network_identity }}"
+        state: present
+      when: not enable_affinity_rules and enable_integration
+
+    # Disable the vCenter integration altogether.
+    - name: Disable vCenter integration
+      nebulon.nebulon_on.neb_vcenter:
+        npod_name: "{{ npod_name }}"
+        state: absent
+      when: not enable_integration

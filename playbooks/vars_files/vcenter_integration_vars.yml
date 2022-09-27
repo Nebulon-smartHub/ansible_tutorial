@@ -1,0 +1,25 @@
+---
+# Name of the nPod to manage
+npod_name: "VMware_Lenovo"
+
+# vCenter variables
+
+# vCenter credentials - vcenter_password defined in the Ansible vault
+vcenter_username: "administrator@vsphere.local"
+vcenter_password: "{{ vault_vcenter_password }}"
+
+# vCenter fully qualified domain name (FQDN) or IP address
+vcenter_network_identity: devvcsa.tme.nebulon.com
+
+# SSL port for vCenter. Defaults to 443. 
+vcenter_ssl_port: 443
+
+# Enable vCenter affinity rules (true|false)
+enable_affinity_rules: true
+
+# Enable insecure communication - for self-signed or expired SSL certificates (true|false)
+insecure: true
+
+# This variable is used to create conditional 'when' statements to control which
+# tasks are run in the playbook. It is not required by the module.
+enable_integration: true
