@@ -1,0 +1,212 @@
+---
+# This is the example playbook for the "Nebulon capacity information" playbook in the
+# ansible tutorial. This is useful for reporting capacity information for either SPU(s), a nPod
+# or a set of volumes.
+
+# The following modules are used in this playbook:
+# - neb_capacity_info - Get host details
+# - neb_npod_info - Get nPod UUID
+# - neb_volume_info - Get volume UUID
+
+# This playbook does the following:
+# - Report Nebulon capacity information for SPU(s), a nPod or a set of volumes. 
+
+# Example invocation
+# ansible-playbook -i inventory/servers.ini playbooks/neb_capacity_info.yml
+
+- name: Nebulon capacity information
+  hosts: localhost
+  connection: local
+
+  # Module defaults for nebulon_on module
+  # 'neb_username' and 'neb_password' are defined in Ansible Vault
+  module_defaults:
+    group/nebulon.nebulon_on.nebulon:
+      neb_username: "{{ vault_neb_username }}"
+      neb_password: "{{ vault_neb_password }}"
+
+  # Load the encrypted username and password for Nebulon ON and other variables
+  vars_files:
+    - vars_files/neb_capacity_info_vars.yml
+    - vars_files/credentials.yml
+
+  # Load the Nebulon Ansible collection
+  collections:
+    - nebulon.nebulon_on
+
+  tasks:
+    # Populate the variable "spu_serials" from the [servers] group in inventory
+    - name: Pull SPU serials from inventory
+      ansible.builtin.set_fact:
+        spu_serials: "{{ groups.servers | map('extract', hostvars, 'spu_serial') | list }}"
+
+    - name: Get SPU(s) capacity information
+      nebulon.nebulon_on.neb_capacity_info:
+        # neb_username: "{{ vault_neb_username }}"
+        # neb_password: "{{ vault_neb_password }}"
+        spu_serial: "{{ item }}"
+      register: spu_capacity_info
+      loop: "{{ spu_serials }}"
+      when: get_neb_spu_capacity
+
+    - name: Print out SPU(s) capacity information
+      debug:
+        msg: "{{ spu_capacity_info }}"
+      when: get_neb_spu_capacity
+
+# Example output
+# ok: [localhost] => {
+#     "msg": {
+#         "changed": false,
+#         "msg": "All items completed",
+#         "results": [
+#             {
+#                 "ansible_loop_var": "item",
+#                 "changed": false,
+#                 "failed": false,
+#                 "invocation": {
+#                     "module_args": {
+#                         "neb_password": "VALUE_SPECIFIED_IN_NO_LOG_PARAMETER",
+#                         "neb_username": "apatt",
+#                         "npod_uuid": null,
+#                         "spu_serial": "014386435A39441111",
+#                         "volume_uuid": null
+#                     }
+#                 },
+#                 "item": "014386435A39441111",
+#                 "spu_consumed_bytes": 3916781056.0,
+#                 "spu_data_reduction_ratio": 1.6,
+#                 "spu_raw_bytes": 9591230300160.0,
+#                 "spu_usable_bytes": 6895999490457.6
+#             },
+#             {
+#                 "ansible_loop_var": "item",
+#                 "changed": false,
+#                 "failed": false,
+#                 "invocation": {
+#                     "module_args": {
+#                         "neb_password": "VALUE_SPECIFIED_IN_NO_LOG_PARAMETER",
+#                         "neb_username": "apatt",
+#                         "npod_uuid": null,
+#                         "spu_serial": "014386435A39442222",
+#                         "volume_uuid": null
+#                     }
+#                 },
+#                 "item": "014386435A39442222",
+#                 "spu_consumed_bytes": 3921547776.0,
+#                 "spu_data_reduction_ratio": 1.6,
+#                 "spu_raw_bytes": 9591230300160.0,
+#                 "spu_usable_bytes": 6895999490457.6
+#             },
+#             {
+#                 "ansible_loop_var": "item",
+#                 "changed": false,
+#                 "failed": false,
+#                 "invocation": {
+#                     "module_args": {
+#                         "neb_password": "VALUE_SPECIFIED_IN_NO_LOG_PARAMETER",
+#                         "neb_username": "apatt",
+#                         "npod_uuid": null,
+#                         "spu_serial": "014386435A39443333",
+#                         "volume_uuid": null
+#                     }
+#                 },
+#                 "item": "014386435A39443333",
+#                 "spu_consumed_bytes": 3917818368.0,
+#                 "spu_data_reduction_ratio": 1.6,
+#                 "spu_raw_bytes": 9591230300160.0,
+#                 "spu_usable_bytes": 6895999490457.6
+#             },
+#             {
+#                 "ansible_loop_var": "item",
+#                 "changed": false,
+#                 "failed": false,
+#                 "invocation": {
+#                     "module_args": {
+#                         "neb_password": "VALUE_SPECIFIED_IN_NO_LOG_PARAMETER",
+#                         "neb_username": "apatt",
+#                         "npod_uuid": null,
+#                         "spu_serial": "014386435A39444444",
+#                         "volume_uuid": null
+#                     }
+#                 },
+#                 "item": "014386435A39444444",
+#                 "spu_consumed_bytes": 3861098496.0,
+#                 "spu_data_reduction_ratio": 1.61,
+#                 "spu_raw_bytes": 9591230300160.0,
+#                 "spu_usable_bytes": 6895999490457.6
+#             }
+#         ],
+#         "skipped": false
+#     }
+# }
+
+    # Instead of asking for a nPod UUID, ask for nPod name, query Nebulon ON for
+    # nPod details and store that in a variable named `npod`
+    - name: Get nPod details from nebulon ON
+      nebulon.nebulon_on.neb_npod_info:
+        name: "{{ npod_name }}"
+      register: npod
+      when: get_neb_npod_capacity
+
+    # Set the npod_uuid variable
+    - name: Store the nPod UUID variable
+      ansible.builtin.set_fact:
+        npod_uuid: "{{ npod.npods[0].uuid }}"
+      when: get_neb_npod_capacity
+
+    - name: Get nPod capacity information
+      nebulon.nebulon_on.neb_capacity_info:
+        neb_username: "{{ vault_neb_username }}"
+        neb_password: "{{ vault_neb_password }}"
+        npod_uuid: "{{ npod_uuid }}"
+      register: npod_capacity_info
+      when: get_neb_npod_capacity
+
+    - name: Print out nPod capacity information
+      debug:
+        msg: "{{ npod_capacity_info }}"
+      when: get_neb_npod_capacity
+
+# Example output:
+# ok: [localhost] => {
+#     "msg": {
+#         "changed": false,
+#         "failed": false,
+#         "npod_consumed_bytes": 14557288448.0,
+#         "npod_data_reduction_ratio": 3.09,
+#         "npod_raw_bytes": 38364921200640.0,
+#         "npod_usable_bytes": 27583997961830.4
+#     }
+# }
+
+    # Since the module expects volume UUIDs we go ahead and get a list of volumes
+    # so the user can specify an exact name or partial match for volume deletion
+    - name: Get nPod volumes
+      nebulon.nebulon_on.neb_volume_info:
+        volume_name: "{{ volume_name }}"
+      register: npod_volumes
+
+    # Query for volume capacity information for only the first volume returned from neb_volume_info.
+    - name: Get volume capacity information
+      nebulon.nebulon_on.neb_capacity_info:
+        # neb_username: "{{ vault_neb_username }}"
+        # neb_password: "{{ vault_neb_password }}"
+        volume_uuid: "{{ npod_volumes.volumes[0].uuid }}"
+      register: volume_capacity_info
+      when: get_neb_volume_capacity
+
+    - name: Print out volume capacity information
+      debug:
+        msg: "{{ volume_capacity_info }}"
+      when: get_neb_volume_capacity
+      
+# Example output:
+# ok: [localhost] => {
+#     "msg": {
+#         "changed": false,
+#         "failed": false,
+#         "volume_host_written_bytes": 5453480448.0,
+#         "volume_size_bytes": 40000000000.0
+#     }
+# }

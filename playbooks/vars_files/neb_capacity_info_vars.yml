@@ -1,0 +1,15 @@
+---
+# If set to true, get the capacity information for one (or more) SPUs.
+get_neb_spu_capacity: false
+
+# If set to true, get the capacity information for an entire nPod.
+get_neb_npod_capacity: false
+
+# Name of the nPod to query for capacity information
+npod_name: "Kubernetes_test_pod"
+
+# If set to true, get the capacity information for one (or more) nPod volumes.
+get_neb_volume_capacity: true
+
+# Name of the nPod volume to query for capacity information
+volume_name: "Kubernetes_test_pod_server-09.tme.nebulon.com_os"
