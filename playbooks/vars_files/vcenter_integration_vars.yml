@@ -11,7 +11,7 @@ vcenter_password: "{{ vault_vcenter_password }}"
 # vCenter fully qualified domain name (FQDN) or IP address
 vcenter_network_identity: devvcsa.tme.nebulon.com
 
-# SSL port for vCenter. Defaults to 443. 
+# SSL port for vCenter. Defaults to 443 - optional parameter.
 vcenter_ssl_port: 443
 
 # Enable vCenter affinity rules (true|false)
@@ -21,5 +21,5 @@ enable_affinity_rules: true
 insecure: true
 
 # This variable is used to create conditional 'when' statements to control which
-# tasks are run in the playbook. It is not required by the module.
+# tasks are run in the example playbook. It is not required by the module.
 enable_integration: true

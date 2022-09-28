@@ -40,6 +40,7 @@
       ansible.builtin.set_fact:
         spu_serials: "{{ groups.servers | map('extract', hostvars, 'spu_serial') | list }}"
 
+    # Extract the capacity information for one or more SPUs.
     - name: Get SPU(s) capacity information
       nebulon.nebulon_on.neb_capacity_info:
         spu_serial: "{{ item }}"
@@ -139,6 +140,8 @@
 #     }
 # }
 
+    # Extract capacity information for an entire nPod.
+
     # Instead of asking for a nPod UUID, ask for nPod name, query Nebulon ON for
     # nPod details and store that in a variable named `npod`
     - name: Get nPod details from nebulon ON
@@ -176,6 +179,8 @@
 #     }
 # }
 
+    # Extract capacity information for a volume
+    
     # Since the module expects volume UUIDs we go ahead and get a list of volumes
     # so the user can specify an exact name or partial match for volume deletion
     - name: Get nPod volumes
